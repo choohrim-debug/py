@@ -51,7 +51,7 @@
             box-sizing: border-box;
         }
 
-        /* 대시보드 요약 카드 스타일 */
+        /* 대시보드 요약 지표 카드 */
         .kpi-container {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -98,7 +98,7 @@
             margin-bottom: 20px;
         }
 
-        /* 탭 가이드/컨트롤 영역 */
+        /* 상단 버튼 및 옵션 컨트롤러 */
         .controls {
             display: flex;
             justify-content: space-between;
@@ -129,10 +129,10 @@
             color: white;
         }
 
-        /* 비상용 파일 업로드 영역 (404 예방) */
+        /* 백업용 파일 직접 선택함 */
         .upload-zone {
             border: 2px dashed #cbd5e0;
-            padding: 15px;
+            padding: 12px 20px;
             text-align: center;
             border-radius: 8px;
             background-color: #f7fafc;
@@ -172,7 +172,7 @@
 
     <header>
         <h1>⚡ 월별 전력 수요 대시보드</h1>
-        <p>시간별 전력 수요 데이터를 분석하여 월별 통계를 시각화합니다.</p>
+        <p>업로드된 <strong>전력수요.csv</strong> 파일의 시간별 데이터를 분석해 월별 지표로 시각화합니다.</p>
     </header>
 
     <div class="container">
@@ -182,17 +182,17 @@
             <div class="kpi-card" style="border-top: 4px solid var(--primary);">
                 <div class="title">연간 총 전력수요</div>
                 <div class="value" id="kpi-total">- MWh</div>
-                <div class="sub-text">누적 소비 전력 합계</div>
+                <div class="sub-text">누적 소비 전력 전체 합계</div>
             </div>
             <div class="kpi-card" style="border-top: 4px solid var(--accent);">
-                <div class="title">연간 최대 피크 수요 (Peak)</div>
+                <div class="title">연간 최고 피크 수요 (Peak)</div>
                 <div class="value" id="kpi-max">- MWh</div>
                 <div class="sub-text" id="kpi-max-date">최대 부하 발생 시점</div>
             </div>
             <div class="kpi-card" style="border-top: 4px solid var(--secondary);">
                 <div class="title">시간당 평균 전력수요</div>
                 <div class="value" id="kpi-avg">- MWh</div>
-                <div class="sub-text">연간 시간당 평균값</div>
+                <div class="sub-text">연간 시간당 평균 사용량</div>
             </div>
         </div>
 
@@ -205,8 +205,8 @@
                 </div>
                 
                 <div class="upload-zone" id="drop-zone">
-                    <span>서버 로드 실패 시: </span>
-                    <label for="csv-file">파일 직접 선택</label> or 드래그
+                    <span>새로고침 시 에러가 나면? </span>
+                    <label for="csv-file">파일 직접 선택</label>
                     <input type="file" id="csv-file" accept=".csv" style="display: none;">
                 </div>
             </div>
@@ -219,23 +219,23 @@
 
     <script>
         // ==========================================
-        // ⚙️ 분석 데이터 맞춤형 고정 설정
+        // ⚙️ 사용자가 주신 전력수요.csv 맞춤형 고정 설정
         // ==========================================
         const CONFIG = {
-            csvFileName: '전력수요.csv', // 👈 전력수요.csv 파일명 정확히 적용
-            columnDate: '일시',          // 👈 실제 열이름 적용
-            columnValue: '전력수요(MWh)'  // 👈 실제 열이름 적용
+            csvFileName: '전력수요.csv', 
+            columnDate: '일시',          
+            columnValue: '전력수요(MWh)'  
         };
 
         let chartInstance = null;
-        let globalAggregatedData = null; // 분석 완료 데이터 임시 저장
-        let currentView = 'mix';         // 현재 차트 보기 상태
+        let globalAggregatedData = null; 
+        let currentView = 'mix';         
 
         document.addEventListener('DOMContentLoaded', () => {
-            // 1. 페이지 로드시 자동 데이터 수신
+            // 1. 페이지 켜지면 자동으로 전력수요.csv 파일 로드
             fetchServerCSV();
 
-            // 2. 수동 업로드 이벤트 감지
+            // 2. 수동 선택 연동
             document.getElementById('csv-file').addEventListener('change', (e) => {
                 if (e.target.files.length > 0) processFile(e.target.files[0]);
             });
@@ -256,57 +256,55 @@
             if (type === 'success') el.classList.add('status-success');
         }
 
-        // 서버에서 CSV 로드
+        // 서버 원격 호출
         async function fetchServerCSV() {
-            showMessage(`🔄 <strong>${CONFIG.csvFileName}</strong> 데이터를 정밀 분석하는 중입니다...`, 'loading');
+            showMessage(`🔄 <strong>${CONFIG.csvFileName}</strong> 데이터를 로드 및 정밀 분석 중입니다...`, 'loading');
             try {
                 const response = await fetch(`${CONFIG.csvFileName}?t=${new Date().getTime()}`);
                 if (!response.ok) {
                     throw new Error(`
-                        <strong>서버에서 <code>${CONFIG.csvFileName}</code>를 찾지 못했습니다. (404 Not Found)</strong><br>
-                        배포 및 경로 가이드:<br>
-                        1. GitHub Repository 메인 화면(최상위 루트)에 <code>전력수요.csv</code> 파일이 업로드되어 있는지 확인해 주세요.<br>
-                        2. 💡 <strong>지금 바로 확인하려면:</strong> 우측 상단의 '파일 직접 선택'을 눌러 PC의 <code>전력수요.csv</code>를 넣으시면 즉시 연동됩니다.
+                        <strong>서버에서 <code>${CONFIG.csvFileName}</code>를 직접 가져오지 못했습니다.</strong><br>
+                        확인 사항: <code>index.html</code>과 <code>전력수요.csv</code>가 저장소의 <strong>동일한 폴더(루트 경로)</strong>에 나란히 놓여있는지 확인해 주세요.<br><br>
+                        💡 <strong>[바로 해결하기]</strong> 오른쪽 '파일 직접 선택' 버튼을 클릭하고 가지고 계신 <code>전력수요.csv</code> 파일을 넣어주시면 즉시 시각화됩니다!
                     `);
                 }
                 const csvText = await response.text();
-                parseAndProcess(csvText, '서버 원격 데이터를 성공적으로 분석 완료했습니다.');
+                parseAndProcess(csvText, '서버 원격 데이터를 완벽하게 파싱하여 대시보드를 생성했습니다.');
             } catch (error) {
                 showMessage(error.message, 'error');
             }
         }
 
-        // 로컬 수동 파일 처리
+        // 로컬 수동 파일 읽기
         function processFile(file) {
-            showMessage(`📂 로컬 데이터 파싱 중: <strong>${file.name}</strong>`, 'loading');
+            showMessage(`📂 파일 가공 중: <strong>${file.name}</strong>`, 'loading');
             const reader = new FileReader();
             reader.onload = function(e) {
-                parseAndProcess(e.target.result, `내 컴퓨터의 <code>${file.name}</code> 파일 분석 및 시각화 성공!`);
+                parseAndProcess(e.target.result, `선택한 <code>${file.name}</code> 파일 분석 완료!`);
             };
             reader.readAsText(file, 'UTF-8');
         }
 
-        // 대용량 시간별 데이터 -> 월별 통계 데이터 변환기
+        // 시간별 데이터 -> 월간 통계 데이터 집계 처리
         function parseAndProcess(csvText, successMsg) {
             try {
                 const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
-                if (lines.length === 0) throw new Error("CSV 데이터가 비어있습니다.");
+                if (lines.length === 0) throw new Error("CSV 파일 내부 내용이 비어있습니다.");
 
+                // 첫 행 헤더 추출 및 트림
                 const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, ''));
                 const idxDate = headers.indexOf(CONFIG.columnDate);
                 const idxValue = headers.indexOf(CONFIG.columnValue);
 
                 if (idxDate === -1 || idxValue === -1) {
-                    throw new Error(`열 이름을 찾을 수 없습니다. 파일 헤더 구성: [${headers.join(', ')}]`);
+                    throw new Error(`파일 매칭 에러: <code>${CONFIG.columnDate}</code> 또는 <code>${CONFIG.columnValue}</code> 열을 찾을 수 없습니다.<br>현재 파일의 첫 줄 구조: [ ${headers.join(', ')} ]`);
                 }
 
-                // 글로벌 요약용 변수
                 let annualTotal = 0;
                 let annualMax = -Infinity;
                 let annualMaxDate = '';
                 let totalRecords = 0;
 
-                // 월별 임시 그룹화 객체
                 const monthlyGroup = {};
 
                 for (let i = 1; i < lines.length; i++) {
@@ -318,11 +316,11 @@
 
                     if (!dateStr || dateStr.length < 7) continue;
                     
-                    // "2025-01-01 01:00" -> "2025-01" 추출
+                    // '2025-01-01 01:00' 문자열에서 앞 7자리 '2025-01'만 잘라 연월 그룹 키로 사용
                     const month = dateStr.substring(0, 7); 
 
                     if (!monthlyGroup[month]) {
-                        monthlyGroup[month] = { sum: 0, max: -Infinity, meanSum: 0, count: 0 };
+                        monthlyGroup[month] = { sum: 0, max: -Infinity, count: 0 };
                     }
 
                     monthlyGroup[month].sum += val;
@@ -331,7 +329,7 @@
                         monthlyGroup[month].max = val;
                     }
 
-                    // 연간 지표 계산
+                    // 전역 연간 통계 산출
                     annualTotal += val;
                     totalRecords++;
                     if (val > annualMax) {
@@ -340,18 +338,16 @@
                     }
                 }
 
-                // 데이터 포맷 최종 가공 (마지막 시간대 등 노이즈 제거를 위해 레코드 수가 너무 적은 달 필터링 가능)
                 const labels = [];
                 const totals = [];
                 const maxes = [];
                 const averages = [];
 
-                // 정렬하여 배열화
+                // 키 기준 정렬 및 데이터 배열 채우기
                 Object.keys(monthlyGroup).sort().forEach(month => {
-                    // 데이터가 단 1개뿐인 이월 시점(예: 2026-01-01 00:00)의 비정상 왜곡 방지
-                    if(monthlyGroup[month].count < 24 && Object.keys(monthlyGroup).length > 1 && month.endsWith("-01") && labels.length > 11) {
-                        return; // 단일 데이터 아웃라이어 제외
-                    }
+                    // 데이터가 단 1개 미만인 잔여 행 노이즈 데이터 차단 필터링
+                    if(monthlyGroup[month].count < 10 && Object.keys(monthlyGroup).length > 1) return;
+
                     labels.push(month);
                     totals.push(monthlyGroup[month].sum);
                     maxes.push(monthlyGroup[month].max);
@@ -360,10 +356,10 @@
 
                 globalAggregatedData = { labels, totals, maxes, averages };
 
-                // 요약 화면(KPI) 반영
+                // 상단 요약 패널 데이터 반영
                 document.getElementById('kpi-total').textContent = annualTotal.toLocaleString() + ' MWh';
                 document.getElementById('kpi-max').textContent = annualMax.toLocaleString() + ' MWh';
-                document.getElementById('kpi-max-date').textContent = `발생일시: ${annualMaxDate}`;
+                document.getElementById('kpi-max-date').textContent = `피크 시점: ${annualMaxDate}`;
                 document.getElementById('kpi-avg').textContent = Math.round(annualTotal / totalRecords).toLocaleString() + ' MWh';
 
                 showMessage(successMsg, 'success');
@@ -374,7 +370,6 @@
             }
         }
 
-        // 탭 전환 기능
         function switchView(viewType) {
             currentView = viewType;
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -382,7 +377,7 @@
             renderChart();
         }
 
-        // 차트 그리기 함수
+        // 차트 렌더링 코어
         function renderChart() {
             if (!globalAggregatedData) return;
             const ctx = document.getElementById('powerChart').getContext('2d');
@@ -392,10 +387,9 @@
             let datasets = [];
 
             if (currentView === 'mix') {
-                // 1. 종합 분석 모드 (월별 총수요 바 + 최고 피크 라인 혼합형 멀티축 차트)
                 datasets = [
                     {
-                        label: '월별 총 전력수요 (좌축)',
+                        label: '월별 총 전력수요 (좌축 바)',
                         data: globalAggregatedData.totals,
                         backgroundColor: 'rgba(43, 108, 176, 0.6)',
                         borderColor: 'rgba(43, 108, 176, 1)',
@@ -404,9 +398,9 @@
                         yAxisID: 'y'
                     },
                     {
-                        label: '월별 순간 최고 피크 (우축)',
+                        label: '월별 순간 최고 피크 (우축 라인)',
                         data: globalAggregatedData.maxes,
-                        backgroundColor: 'rgba(221, 107, 32, 0.2)',
+                        backgroundColor: 'rgba(221, 107, 32, 0.15)',
                         borderColor: 'rgba(221, 107, 32, 1)',
                         borderWidth: 3,
                         type: 'line',
@@ -416,7 +410,6 @@
                     }
                 ];
             } else if (currentView === 'sum') {
-                // 2. 월별 총수요 전용 바 차트
                 datasets = [{
                     label: '월별 총 전력수요 (MWh)',
                     data: globalAggregatedData.totals,
@@ -426,7 +419,6 @@
                     type: 'bar'
                 }];
             } else if (currentView === 'peak') {
-                // 3. 피크 및 평균 트렌드 비교 차트
                 datasets = [
                     {
                         label: '월별 순간 최고 피크 (MWh)',
@@ -471,10 +463,9 @@
                             type: 'linear',
                             display: true,
                             position: 'left',
-                            title: { display: true, text: currentView === 'mix' ? '총 수요 (MWh)' : '전력 부하량 (MWh)' },
+                            title: { display: true, text: currentView === 'mix' ? '총 수요합계 (MWh)' : '전력량 (MWh)' },
                             beginAtZero: false
                         },
-                        // 종합 모드일 때만 적용될 우측 Y축 설정
                         y1: {
                             type: 'linear',
                             display: currentView === 'mix',
