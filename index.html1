@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>월별 전력 수급 현황 시각화</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #f4f7f6;
+            --card-bg: #ffffff;
+            --text-color: #2c3e50;
+            --border-color: #e2e8f0;
+            --primary-color: #3182ce;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 30px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header {
+            margin-bottom: 25px;
+            text-align: center;
+        }
+
+        header h1 {
+            margin: 0 0 8px 0;
+            color: var(--primary-color);
+            font-size: 28px;
+        }
+
+        header p {
+            margin: 0;
+            color: #718096;
+            font-size: 14px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1000px;
+            background-color: var(--card-bg);
+            border-radius: 14px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            padding: 30px;
+            box-sizing: border-box;
+            border: 1px solid var(--border-color);
+        }
+
+        /* 파일 직접 선택 영역 (404 예방용 비상 수단) */
+        .upload-zone {
+            border: 2px dashed #cbd5e0;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px;
+            background-color: #f7fafc;
+            margin-bottom: 20px;
+            transition: all 0.2s;
+        }
+        
+        .upload-zone:hover {
+            border-color: var(--primary-color);
+            background-color: #ebf8ff;
+        }
+
+        .upload-zone label {
+            color: var(--primary-color);
+            font-weight: bold;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 520px;
+            margin-top: 10px;
+        }
+
+        /* 상태메시지 스타일 */
+        #status-message {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            line-height: 1.5;
+            display: none;
+        }
+        
+        .status-loading {
+            display: block !important;
+            background-color: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .status-error {
+            display: block !important;
+            background-color: #fff5f5;
+            color: #c53030;
+            border-left: 4px solid #e53e3e;
+        }
+
+        .status-success {
+            display: block !important;
+            background-color: #f0fff4;
+            color: #22543d;
+            border-left: 4px solid #38a169;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>월별 전력 수급 현황</h1>
+        <p>CSV 데이터를 활용한 공급능력 및 최대부하 비교 대시보드</p>
+    </header>
+
+    <div class="container">
+        <div id="status-message"></div>
+
+        <div class="upload-zone" id="drop-zone">
+            <span>서버의 CSV를 가져오는 중 오류가 발생했다면, </span>
+            <label for="csv-file">여기에서 CSV 파일을 직접 선택</label>
+            <span>하거나 이 영역에 파일을 드래그앤드롭 하세요.</span>
+            <input type="file" id="csv-file" accept=".csv" style="display: none;">
+        </div>
+
+        <div class="chart-container">
+            <canvas id="powerChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // ⚙️ 사용자의 CSV 설정 (파일명 및 열 이름)
+        // ==========================================
+        const CONFIG = {
+            csvFileName: 'electricity_data.csv', // 👈 [중요] 실제 GitHub의 CSV 파일명과 완벽히 일치해야 합니다 (대소문자 구분 필수)
+            columnMonth: '연월',                    
+            columnSupply: '공급능력(MW)',            
+            columnDemand: '최대부하(MW)'             
+        };
+
+        let chartInstance = null; // 중복 생성 방지용 객체 변수
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // 1. 페이지 로드 시 먼저 서버(GitHub Pages) 내의 CSV 파일 가져오기 시도
+            fetchServerCSV();
+
+            // 2. 파일 수동 입력 이벤트 바인딩
+            const fileInput = document.getElementById('csv-file');
+            fileInput.addEventListener('change', handleFileSelect);
+
+            // 드래그 앤 드롭 이벤트 바인딩
+            const dropZone = document.getElementById('drop-zone');
+            dropZone.addEventListener('dragover', (e) => { e.preventDefault(); });
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                if (e.dataTransfer.files.length > 0) {
+                    processFile(e.dataTransfer.files[0]);
+                }
+            });
+        });
+
+        // 메시지 표시 함수
+        function showMessage(text, type) {
+            const el = document.getElementById('status-message');
+            el.className = ''; 
+            el.innerHTML = text;
+            if (type === 'loading') el.classList.add('status-loading');
+            if (type === 'error') el.classList.add('status-error');
+            if (type === 'success') el.classList.add('status-success');
+        }
+
+        // 서버에서 CSV 가져오기
+        async function fetchServerCSV() {
+            showMessage(`🔄 <strong>${CONFIG.csvFileName}</strong> 파일을 서버에서 읽어오는 중...`, 'loading');
+            try {
+                // ./ 를 생략하거나 붙여도 동작하도록 캐시 방지 파라미터(Timestamp)를 포함하여 요청
+                const response = await fetch(`${CONFIG.csvFileName}?v=${new Date().getTime()}`);
+                
+                if (!response.ok) {
+                    throw new Error(`
+                        <strong>CSV 파일을 로드하지 못했습니다. (상태코드: ${response.status})</strong><br>
+                        주요 원인:<br>
+                        1. GitHub 저장소에 <code>${CONFIG.csvFileName}</code> 파일이 올라가 있지 않음.<br>
+                        2. 파일명의 대소문자가 서로 다름 (예: .CSV 와 .csv 구분).<br>
+                        <br>💡 아래 수동 선택 창을 이용해 컴퓨터에 있는 CSV 파일을 바로 넣어서 테스트해볼 수 있습니다.
+                    `);
+                }
+                
+                const csvText = await response.text();
+                parseAndRender(csvText, `서버 파일(<code>${CONFIG.csvFileName}</code>)을 성공적으로 로드했습니다.`);
+
+            } catch (error) {
+                showMessage(error.message, 'error');
+            }
+        }
+
+        // 수동 파일 선택 처리
+        function handleFileSelect(e) {
+            if (e.target.files.length === 0) return;
+            processFile(e.target.files[0]);
+        }
+
+        // 파일 읽기 실행
+        function processFile(file) {
+            showMessage(`📂 파일 읽는 중: <strong>${file.name}</strong>`, 'loading');
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                parseAndRender(e.target.result, `선택한 파일(<code>${file.name}</code>) 시각화 완료!`);
+            };
+            reader.readAsText(file, 'EUC-KR'); // 한글 깨짐 방지를 위해 기본 인코딩 설정 (필요시 UTF-8 변환)
+        }
+
+        // CSV 분석 및 시각화 트리거
+        function parseAndRender(csvText, successMsg) {
+            try {
+                const parsedData = parseCSV(csvText);
+                
+                if (parsedData.labels.length === 0) {
+                    throw new Error(`CSV 파일을 열었으나 지정된 열 이름(<strong>${CONFIG.columnMonth}</strong>, <strong>${CONFIG.columnSupply}</strong>, <strong>${CONFIG.columnDemand}</strong>)을 찾지 못했습니다. 파일 내부 헤더를 확인하세요.`);
+                }
+
+                showMessage(successMsg, 'success');
+                renderChart(parsedData);
+            } catch (err) {
+                showMessage(err.message, 'error');
+            }
+        }
+
+        // 정교해진 CSV 파서
+        function parseCSV(text) {
+            const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+            if (lines.length === 0) return { labels: [], supply: [], demand: [] };
+
+            // 첫 줄 헤더 파싱 (따옴표 제거 및 공백 트림)
+            const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, ''));
+            const idxMonth = headers.indexOf(CONFIG.columnMonth);
+            const idxSupply = headers.indexOf(CONFIG.columnSupply);
+            const idxDemand = headers.indexOf(CONFIG.columnDemand);
+
+            if (idxMonth === -1 || idxSupply === -1 || idxDemand === -1) {
+                return { labels: [], supply: [], demand: [] };
+            }
+
+            const labels = [];
+            const supply = [];
+            const demand = [];
+
+            for (let i = 1; i < lines.length; i++) {
+                // 쉼표로 분할하되 따옴표 내부의 쉼표는 무시하는 정규식 적용 (예: "1,200" 방지)
+                const row = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || lines[i].split(',');
+                const cleanRow = row.map(cell => cell.trim().replace(/^["']|["']$/g, ''));
+                
+                if (cleanRow.length <= Math.max(idxMonth, idxSupply, idxDemand)) continue;
+
+                labels.push(cleanRow[idxMonth]);
+                supply.push(parseFloat(cleanRow[idxSupply].replace(/,/g, '')) || 0);
+                demand.push(parseFloat(cleanRow[idxDemand].replace(/,/g, '')) || 0);
+            }
+
+            return { labels, supply, demand };
+        }
+
+        // Chart.js 렌더링
+        function renderChart(data) {
+            const ctx = document.getElementById('powerChart').getContext('2d');
+            
+            // 기존 차트가 존재하면 초기화 (중복 렌더링 에러 방지)
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+            
+            chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.labels,
+                    datasets: [
+                        {
+                            label: CONFIG.columnSupply,
+                            data: data.supply,
+                            backgroundColor: 'rgba(49, 130, 206, 0.7)',
+                            borderColor: 'rgba(49, 130, 206, 1)',
+                            borderWidth: 1,
+                            type: 'bar',
+                            order: 2
+                        },
+                        {
+                            label: CONFIG.columnDemand,
+                            data: data.demand,
+                            backgroundColor: 'rgba(229, 62, 62, 0.2)',
+                            borderColor: 'rgba(229, 62, 62, 1)',
+                            borderWidth: 3,
+                            type: 'line',
+                            tension: 0.3,
+                            pointRadius: 4,
+                            order: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: { mode: 'index', intersect: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            title: { display: true, text: '전력량 (MW)', font: { weight: 'bold' } }
+                        },
+                        x: {
+                            title: { display: true, text: '연월', font: { weight: 'bold' } }
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
