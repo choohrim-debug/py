@@ -3,17 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>월별 전력 수요 현황 대시보드</title>
+    <title>서울 월별 기온 현황 대시보드</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --bg-color: #f0f4f8;
+            --bg-color: #f4f7f9;
             --card-bg: #ffffff;
-            --text-color: #1a202c;
+            --text-color: #2d3748;
             --border-color: #e2e8f0;
-            --primary: #2b6cb0;
-            --secondary: #319795;
-            --accent: #dd6b20;
+            --primary: #3182ce;
+            --success: #38a169;
+            --danger: #e53e3e;
+            --warning: #dd6b20;
         }
 
         body {
@@ -35,13 +36,14 @@
         header h1 {
             margin: 0 0 8px 0;
             color: var(--primary);
-            font-size: 30px;
+            font-size: 32px;
             font-weight: 800;
+            letter-spacing: -0.5px;
         }
 
         header p {
             margin: 0;
-            color: #4a5568;
+            color: #718096;
             font-size: 15px;
         }
 
@@ -51,7 +53,7 @@
             box-sizing: border-box;
         }
 
-        /* 대시보드 요약 카드 스타일 */
+        /* 주요 기온 지표 카드 (KPI) */
         .kpi-container {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -61,67 +63,68 @@
 
         .kpi-card {
             background-color: var(--card-bg);
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+            border-radius: 14px;
+            padding: 22px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
             border: 1px solid var(--border-color);
             display: flex;
             flex-direction: column;
+            position: relative;
+            overflow: hidden;
         }
 
         .kpi-card .title {
             font-size: 14px;
             color: #718096;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             font-weight: bold;
         }
 
         .kpi-card .value {
-            font-size: 24px;
+            font-size: 28px;
             font-weight: 800;
-            color: var(--text-color);
+            margin-top: 2px;
         }
 
         .kpi-card .sub-text {
             font-size: 12px;
             color: #a0aec0;
-            margin-top: 6px;
+            margin-top: 8px;
         }
 
-        /* 메인 콘텐츠 카드 */
+        /* 메인 차트 카드 패널 */
         .main-card {
             background-color: var(--card-bg);
-            border-radius: 14px;
+            border-radius: 16px;
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
-            padding: 25px;
+            padding: 28px;
             border: 1px solid var(--border-color);
             margin-bottom: 20px;
         }
 
-        /* 탭 가이드/컨트롤 영역 */
         .controls {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 22px;
             flex-wrap: wrap;
             gap: 15px;
         }
 
         .tabs {
             display: flex;
-            gap: 10px;
+            gap: 8px;
         }
 
         .tab-btn {
             background-color: #edf2f7;
             border: none;
-            padding: 10px 18px;
+            padding: 10px 20px;
             border-radius: 8px;
             cursor: pointer;
             font-weight: 600;
             color: #4a5568;
-            transition: all 0.2s;
+            transition: all 0.2s ease-in-out;
         }
 
         .tab-btn.active {
@@ -129,10 +132,10 @@
             color: white;
         }
 
-        /* 비상용 파일 업로드 영역 (404 예방) */
+        /* 파일 문제 발생 시 수동 백업 도구 */
         .upload-zone {
             border: 2px dashed #cbd5e0;
-            padding: 15px;
+            padding: 10px 18px;
             text-align: center;
             border-radius: 8px;
             background-color: #f7fafc;
@@ -153,9 +156,9 @@
             height: 520px;
         }
 
-        /* 상태 알림 알림창 */
+        /* 알림 상태창 */
         #status-message {
-            padding: 15px;
+            padding: 16px;
             border-radius: 8px;
             margin-bottom: 20px;
             font-size: 14px;
@@ -164,78 +167,78 @@
         }
         
         .status-loading { display: block !important; background-color: #e2e8f0; color: #4a5568; }
-        .status-error { display: block !important; background-color: #fff5f5; color: #c53030; border-left: 4px solid #e53e3e; }
-        .status-success { display: block !important; background-color: #f0fff4; color: #22543d; border-left: 4px solid #38a169; }
+        .status-error { display: block !important; background-color: #fff5f5; color: #c53030; border-left: 5px solid #e53e3e; }
+        .status-success { display: block !important; background-color: #f0fff4; color: #22543d; border-left: 5px solid #38a169; }
     </style>
 </head>
 <body>
 
     <header>
-        <h1>⚡ 월별 전력 수요 대시보드</h1>
-        <p>시간별 전력 수요 데이터를 분석하여 월별 통계를 시각화합니다.</p>
+        <h1>🌤️ 서울 기온 변동 트렌드 대시보드</h1>
+        <p><strong>서울_기온.csv</strong> 파일을 분석하여 월간 평균 및 최고·최저 기온 변화를 시각화합니다.</p>
     </header>
 
     <div class="container">
         <div id="status-message"></div>
 
         <div class="kpi-container">
+            <div class="kpi-card" style="border-top: 4px solid var(--success);">
+                <div class="title">연평균 기온</div>
+                <div class="value" id="kpi-avg" style="color: var(--success);">- °C</div>
+                <div class="sub-text">1년 전체 측정치 평균값</div>
+            </div>
+            <div class="kpi-card" style="border-top: 4px solid var(--danger);">
+                <div class="title">연최고 기온 (Peak)</div>
+                <div class="value" id="kpi-max" style="color: var(--danger);">- °C</div>
+                <div class="sub-text" id="kpi-max-date">최고 기온 발생 일시</div>
+            </div>
             <div class="kpi-card" style="border-top: 4px solid var(--primary);">
-                <div class="title">연간 총 전력수요</div>
-                <div class="value" id="kpi-total">- MWh</div>
-                <div class="sub-text">누적 소비 전력 합계</div>
-            </div>
-            <div class="kpi-card" style="border-top: 4px solid var(--accent);">
-                <div class="title">연간 최대 피크 수요 (Peak)</div>
-                <div class="value" id="kpi-max">- MWh</div>
-                <div class="sub-text" id="kpi-max-date">최대 부하 발생 시점</div>
-            </div>
-            <div class="kpi-card" style="border-top: 4px solid var(--secondary);">
-                <div class="title">시간당 평균 전력수요</div>
-                <div class="value" id="kpi-avg">- MWh</div>
-                <div class="sub-text">연간 시간당 평균값</div>
+                <div class="title">연최저 기온 (Floor)</div>
+                <div class="value" id="kpi-min" style="color: var(--primary);">- °C</div>
+                <div class="sub-text" id="kpi-min-date">최저 기온 발생 일시</div>
             </div>
         </div>
 
         <div class="main-card">
             <div class="controls">
                 <div class="tabs">
-                    <button class="tab-btn active" onclick="switchView('mix')">종합 분석</button>
-                    <button class="tab-btn" onclick="switchView('sum')">월별 총 수요</button>
-                    <button class="tab-btn" onclick="switchView('peak')">월별 최고 피크</button>
+                    <button class="tab-btn active" onclick="switchView('all')">종합 기온 변화</button>
+                    <button class="tab-btn" onclick="switchView('avg')">월평균 기온</button>
+                    <button class="tab-btn" onclick="switchView('extreme')">최고 vs 최저 편차</button>
                 </div>
                 
                 <div class="upload-zone" id="drop-zone">
-                    <span>서버 로드 실패 시: </span>
-                    <label for="csv-file">파일 직접 선택</label> or 드래그
+                    <span>서버 파일 로드 실패 시: </span>
+                    <label for="csv-file">파일 직접 선택</label>
                     <input type="file" id="csv-file" accept=".csv" style="display: none;">
                 </div>
             </div>
 
             <div class="chart-container">
-                <canvas id="powerChart"></canvas>
+                <canvas id="tempChart"></canvas>
             </div>
         </div>
     </div>
 
     <script>
         // ==========================================
-        // ⚙️ 분석 데이터 맞춤형 고정 설정
+        // ⚙️ 실제 업로드된 파일의 명칭 및 컬럼 설정
         // ==========================================
         const CONFIG = {
-            csvFileName: '전력수요.csv', // 👈 전력수요.csv 파일명 정확히 적용
-            columnDate: '일시',          // 👈 실제 열이름 적용
-            columnValue: '전력수요(MWh)'  // 👈 실제 열이름 적용
+            csvFileName: '서울_기온.csv', 
+            columnDate: '일시',          
+            columnTemp: '기온(°C)'       
         };
 
         let chartInstance = null;
-        let globalAggregatedData = null; // 분석 완료 데이터 임시 저장
-        let currentView = 'mix';         // 현재 차트 보기 상태
+        let processedData = null; 
+        let currentView = 'all';  
 
         document.addEventListener('DOMContentLoaded', () => {
-            // 1. 페이지 로드시 자동 데이터 수신
+            // 1. 자동으로 같은 폴더 안의 '서울_기온.csv' 파일 로드 시도
             fetchServerCSV();
 
-            // 2. 수동 업로드 이벤트 감지
+            // 2. 수동 선택 컴포넌트 바인딩
             document.getElementById('csv-file').addEventListener('change', (e) => {
                 if (e.target.files.length > 0) processFile(e.target.files[0]);
             });
@@ -256,117 +259,125 @@
             if (type === 'success') el.classList.add('status-success');
         }
 
-        // 서버에서 CSV 로드
+        // 서버 원격 패치 실행
         async function fetchServerCSV() {
-            showMessage(`🔄 <strong>${CONFIG.csvFileName}</strong> 데이터를 정밀 분석하는 중입니다...`, 'loading');
+            showMessage(`🔄 <strong>${CONFIG.csvFileName}</strong> 데이터를 서버에서 불러와 분석 중입니다...`, 'loading');
             try {
                 const response = await fetch(`${CONFIG.csvFileName}?t=${new Date().getTime()}`);
                 if (!response.ok) {
                     throw new Error(`
-                        <strong>서버에서 <code>${CONFIG.csvFileName}</code>를 찾지 못했습니다. (404 Not Found)</strong><br>
-                        배포 및 경로 가이드:<br>
-                        1. GitHub Repository 메인 화면(최상위 루트)에 <code>전력수요.csv</code> 파일이 업로드되어 있는지 확인해 주세요.<br>
-                        2. 💡 <strong>지금 바로 확인하려면:</strong> 우측 상단의 '파일 직접 선택'을 눌러 PC의 <code>전력수요.csv</code>를 넣으시면 즉시 연동됩니다.
+                        <strong>서버에서 <code>${CONFIG.csvFileName}</code> 파일을 로드하지 못했습니다. (404 Error)</strong><br>
+                        주요 조치 사항:<br>
+                        1. GitHub Repository 메인 화면에 <code>서울_기온.csv</code> 파일이 정확히 업로드되었는지 확인해 주세요.<br>
+                        2. 파일명에 오탈자나 확장자 대소문자 불일치가 없는지 확인해 주세요.<br><br>
+                        💡 <strong>[즉시 테스트하기]</strong> 오른쪽 '파일 직접 선택'을 클릭하고 내 PC의 <code>서울_기온.csv</code>를 지정하면 즉시 시각화됩니다!
                     `);
                 }
                 const csvText = await response.text();
-                parseAndProcess(csvText, '서버 원격 데이터를 성공적으로 분석 완료했습니다.');
+                parseAndProcess(csvText, '서버 원격 데이터를 성공적으로 집계 및 분석 완료했습니다.');
             } catch (error) {
                 showMessage(error.message, 'error');
             }
         }
 
-        // 로컬 수동 파일 처리
+        // 로컬 수동 파일 선택 처리
         function processFile(file) {
-            showMessage(`📂 로컬 데이터 파싱 중: <strong>${file.name}</strong>`, 'loading');
+            showMessage(`📂 로컬 파일 로드 중: <strong>${file.name}</strong>`, 'loading');
             const reader = new FileReader();
             reader.onload = function(e) {
-                parseAndProcess(e.target.result, `내 컴퓨터의 <code>${file.name}</code> 파일 분석 및 시각화 성공!`);
+                parseAndProcess(e.target.result, `선택한 <code>${file.name}</code> 파일 기반 데이터 분석 완료!`);
             };
-            reader.readAsText(file, 'UTF-8');
+            reader.readAsText(file, 'UTF-8'); // 주신 파일 인코딩 규칙에 맞춤
         }
 
-        // 대용량 시간별 데이터 -> 월별 통계 데이터 변환기
+        // 시간별 로우 데이터 -> 월간 통계 데이터 집계 엔진
         function parseAndProcess(csvText, successMsg) {
             try {
                 const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
-                if (lines.length === 0) throw new Error("CSV 데이터가 비어있습니다.");
+                if (lines.length === 0) throw new Error("CSV 파일 내부 내용이 비어있습니다.");
 
+                // 첫 행 헤더 추출 및 정규화
                 const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, ''));
-                const idxDate = headers.indexOf(CONFIG.columnDate);
-                const idxValue = headers.indexOf(CONFIG.columnValue);
+                
+                // 유연한 매칭 구조 지원
+                let idxDate = headers.indexOf(CONFIG.columnDate);
+                let idxTemp = headers.indexOf(CONFIG.columnTemp);
+                if (idxDate === -1) idxDate = headers.findIndex(h => h.includes('일시'));
+                if (idxTemp === -1) idxTemp = headers.findIndex(h => h.includes('기온'));
 
-                if (idxDate === -1 || idxValue === -1) {
-                    throw new Error(`열 이름을 찾을 수 없습니다. 파일 헤더 구성: [${headers.join(', ')}]`);
+                if (idxDate === -1 || idxTemp === -1) {
+                    throw new Error(`파일 매칭 실패: <code>일시</code> 또는 <code>기온</code> 열을 찾을 수 없습니다.<br>현재 파일 헤더: [ ${headers.join(', ')} ]`);
                 }
 
-                // 글로벌 요약용 변수
-                let annualTotal = 0;
+                let annualSum = 0;
                 let annualMax = -Infinity;
                 let annualMaxDate = '';
+                let annualMin = Infinity;
+                let annualMinDate = '';
                 let totalRecords = 0;
 
-                // 월별 임시 그룹화 객체
                 const monthlyGroup = {};
 
                 for (let i = 1; i < lines.length; i++) {
                     const row = lines[i].split(',');
-                    if (row.length <= Math.max(idxDate, idxValue)) continue;
+                    if (row.length <= Math.max(idxDate, idxTemp)) continue;
 
                     const dateStr = row[idxDate].trim().replace(/^["']|["']$/g, '');
-                    const val = parseFloat(row[idxValue].trim().replace(/,/g, '')) || 0;
+                    const tempVal = parseFloat(row[idxTemp].trim().replace(/,/g, ''));
 
-                    if (!dateStr || dateStr.length < 7) continue;
+                    if (isNaN(tempVal) || !dateStr || dateStr.length < 7) continue;
                     
-                    // "2025-01-01 01:00" -> "2025-01" 추출
+                    // '2025-01-01 01:00' -> '2025-01' 자르기
                     const month = dateStr.substring(0, 7); 
 
                     if (!monthlyGroup[month]) {
-                        monthlyGroup[month] = { sum: 0, max: -Infinity, meanSum: 0, count: 0 };
+                        monthlyGroup[month] = { sum: 0, max: -Infinity, min: Infinity, count: 0 };
                     }
 
-                    monthlyGroup[month].sum += val;
+                    monthlyGroup[month].sum += tempVal;
                     monthlyGroup[month].count++;
-                    if (val > monthlyGroup[month].max) {
-                        monthlyGroup[month].max = val;
-                    }
+                    if (tempVal > monthlyGroup[month].max) monthlyGroup[month].max = tempVal;
+                    if (tempVal < monthlyGroup[month].min) monthlyGroup[month].min = tempVal;
 
-                    // 연간 지표 계산
-                    annualTotal += val;
+                    // 연간 전역 지표 집계
+                    annualSum += tempVal;
                     totalRecords++;
-                    if (val > annualMax) {
-                        annualMax = val;
+                    if (tempVal > annualMax) {
+                        annualMax = tempVal;
                         annualMaxDate = dateStr;
+                    }
+                    if (tempVal < annualMin) {
+                        annualMin = tempVal;
+                        annualMinDate = dateStr;
                     }
                 }
 
-                // 데이터 포맷 최종 가공 (마지막 시간대 등 노이즈 제거를 위해 레코드 수가 너무 적은 달 필터링 가능)
                 const labels = [];
-                const totals = [];
-                const maxes = [];
                 const averages = [];
+                const maxes = [];
+                const mins = [];
 
-                // 정렬하여 배열화
+                // 월별 순서대로 정렬하여 가공 배열 채우기
                 Object.keys(monthlyGroup).sort().forEach(month => {
-                    // 데이터가 단 1개뿐인 이월 시점(예: 2026-01-01 00:00)의 비정상 왜곡 방지
-                    if(monthlyGroup[month].count < 24 && Object.keys(monthlyGroup).length > 1 && month.endsWith("-01") && labels.length > 11) {
-                        return; // 단일 데이터 아웃라이어 제외
-                    }
+                    // 데이터 기록이 극히 적은 노이즈 아웃라이어 데이터 행 제외
+                    if(monthlyGroup[month].count < 10) return;
+
                     labels.push(month);
-                    totals.push(monthlyGroup[month].sum);
+                    averages.push(parseFloat((monthlyGroup[month].sum / monthlyGroup[month].count).toFixed(1)));
                     maxes.push(monthlyGroup[month].max);
-                    averages.push(Math.round(monthlyGroup[month].sum / monthlyGroup[month].count));
+                    mins.push(monthlyGroup[month].min);
                 });
 
-                globalAggregatedData = { labels, totals, maxes, averages };
+                processedData = { labels, averages, maxes, mins };
 
-                // 요약 화면(KPI) 반영
-                document.getElementById('kpi-total').textContent = annualTotal.toLocaleString() + ' MWh';
-                document.getElementById('kpi-max').textContent = annualMax.toLocaleString() + ' MWh';
-                document.getElementById('kpi-max-date').textContent = `발생일시: ${annualMaxDate}`;
-                document.getElementById('kpi-avg').textContent = Math.round(annualTotal / totalRecords).toLocaleString() + ' MWh';
+                // KPI 대시보드 스코어 보드 데이터 매핑
+                document.getElementById('kpi-avg').textContent = (annualSum / totalRecords).toFixed(1) + ' °C';
+                document.getElementById('kpi-max').textContent = annualMax.toFixed(1) + ' °C';
+                document.getElementById('kpi-max-date').textContent = `최고 시점: ${annualMaxDate}`;
+                document.getElementById('kpi-min').textContent = annualMin.toFixed(1) + ' °C';
+                document.getElementById('kpi-min-date').textContent = `최저 시점: ${annualMinDate}`;
 
-                showMessage(successMsg, 'success');
+                showMessage(`✅ ${successMsg}`, 'success');
                 renderChart();
 
             } catch (err) {
@@ -374,7 +385,7 @@
             }
         }
 
-        // 탭 전환 기능
+        // 탭 토글 시스템
         function switchView(viewType) {
             currentView = viewType;
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -382,77 +393,78 @@
             renderChart();
         }
 
-        // 차트 그리기 함수
+        // 차트 그리기 코어 함수
         function renderChart() {
-            if (!globalAggregatedData) return;
-            const ctx = document.getElementById('powerChart').getContext('2d');
+            if (!processedData) return;
+            const ctx = document.getElementById('tempChart').getContext('2d');
             
             if (chartInstance) chartInstance.destroy();
 
             let datasets = [];
 
-            if (currentView === 'mix') {
-                // 1. 종합 분석 모드 (월별 총수요 바 + 최고 피크 라인 혼합형 멀티축 차트)
+            if (currentView === 'all') {
+                // 1. 종합 분석 모드 (최고, 평균, 최저 기온 트렌드 라인 차트)
                 datasets = [
                     {
-                        label: '월별 총 전력수요 (좌축)',
-                        data: globalAggregatedData.totals,
-                        backgroundColor: 'rgba(43, 108, 176, 0.6)',
-                        borderColor: 'rgba(43, 108, 176, 1)',
-                        borderWidth: 1,
-                        type: 'bar',
-                        yAxisID: 'y'
+                        label: '월최고 기온 (°C)',
+                        data: processedData.maxes,
+                        borderColor: 'rgba(229, 62, 62, 1)',
+                        backgroundColor: 'rgba(229, 62, 62, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 4
                     },
                     {
-                        label: '월별 순간 최고 피크 (우축)',
-                        data: globalAggregatedData.maxes,
-                        backgroundColor: 'rgba(221, 107, 32, 0.2)',
-                        borderColor: 'rgba(221, 107, 32, 1)',
+                        label: '월평균 기온 (°C)',
+                        data: processedData.averages,
+                        borderColor: 'rgba(56, 161, 105, 1)',
+                        backgroundColor: 'rgba(56, 161, 105, 0.1)',
                         borderWidth: 3,
-                        type: 'line',
-                        tension: 0.2,
+                        tension: 0.3,
                         pointRadius: 4,
-                        yAxisID: 'y1'
+                        fill: false
+                    },
+                    {
+                        label: '월최저 기온 (°C)',
+                        data: processedData.mins,
+                        borderColor: 'rgba(49, 130, 206, 1)',
+                        backgroundColor: 'rgba(49, 130, 206, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 4
                     }
                 ];
-            } else if (currentView === 'sum') {
-                // 2. 월별 총수요 전용 바 차트
+            } else if (currentView === 'avg') {
+                // 2. 월평균 기온 전용 바 차트
                 datasets = [{
-                    label: '월별 총 전력수요 (MWh)',
-                    data: globalAggregatedData.totals,
-                    backgroundColor: 'rgba(49, 151, 149, 0.7)',
-                    borderColor: 'rgba(49, 151, 149, 1)',
+                    label: '월평균 기온 (°C)',
+                    data: processedData.averages,
+                    backgroundColor: processedData.averages.map(v => v >= 0 ? 'rgba(56, 161, 105, 0.7)' : 'rgba(49, 130, 206, 0.7)'),
+                    borderColor: processedData.averages.map(v => v >= 0 ? 'rgba(56, 161, 105, 1)' : 'rgba(49, 130, 206, 1)'),
                     borderWidth: 1,
                     type: 'bar'
                 }];
-            } else if (currentView === 'peak') {
-                // 3. 피크 및 평균 트렌드 비교 차트
+            } else if (currentView === 'extreme') {
+                // 3. 최고 vs 최저 기온 편차 비교 차트
                 datasets = [
                     {
-                        label: '월별 순간 최고 피크 (MWh)',
-                        data: globalAggregatedData.maxes,
-                        borderColor: 'rgba(229, 62, 62, 1)',
-                        backgroundColor: 'rgba(229, 62, 62, 0.1)',
-                        borderWidth: 3,
-                        type: 'line',
-                        tension: 0.2
+                        label: '월최고 기온 (°C)',
+                        data: processedData.maxes,
+                        backgroundColor: 'rgba(229, 62, 62, 0.7)',
+                        type: 'bar'
                     },
                     {
-                        label: '월별 시간당 평균 수요 (MWh)',
-                        data: globalAggregatedData.averages,
-                        borderColor: 'rgba(49, 130, 206, 1)',
-                        backgroundColor: 'transparent',
-                        borderWidth: 2,
-                        borderDash: [5, 5],
-                        type: 'line',
-                        tension: 0.2
+                        label: '월최저 기온 (°C)',
+                        data: processedData.mins,
+                        backgroundColor: 'rgba(49, 130, 206, 0.7)',
+                        type: 'bar'
                     }
                 ];
             }
 
             chartInstance = new Chart(ctx, {
                 data: {
-                    labels: globalAggregatedData.labels,
+                    labels: processedData.labels,
                     datasets: datasets
                 },
                 options: {
@@ -468,19 +480,7 @@
                             title: { display: true, text: '조회 연월' }
                         },
                         y: {
-                            type: 'linear',
-                            display: true,
-                            position: 'left',
-                            title: { display: true, text: currentView === 'mix' ? '총 수요 (MWh)' : '전력 부하량 (MWh)' },
-                            beginAtZero: false
-                        },
-                        // 종합 모드일 때만 적용될 우측 Y축 설정
-                        y1: {
-                            type: 'linear',
-                            display: currentView === 'mix',
-                            position: 'right',
-                            title: { display: true, text: '순간 최고 피크 (MWh)' },
-                            grid: { drawOnChartArea: false },
+                            title: { display: true, text: '기온 (°C)', font: { weight: 'bold' } },
                             beginAtZero: false
                         }
                     }
