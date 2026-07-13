@@ -15,7 +15,7 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
             background-color: var(--bg-color);
             color: var(--text-color);
             margin: 0;
@@ -47,13 +47,13 @@
             max-width: 1000px;
             background-color: var(--card-bg);
             border-radius: 14px;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
             padding: 30px;
             box-sizing: border-box;
             border: 1px solid var(--border-color);
         }
 
-        /* 파일 직접 선택 영역 (404 예방용 비상 수단) */
+        /* 404 에러 방지용 수동 파일 선택 영역 */
         .upload-zone {
             border: 2px dashed #cbd5e0;
             padding: 20px;
@@ -62,6 +62,7 @@
             background-color: #f7fafc;
             margin-bottom: 20px;
             transition: all 0.2s;
+            font-size: 14px;
         }
         
         .upload-zone:hover {
@@ -79,17 +80,17 @@
         .chart-container {
             position: relative;
             width: 100%;
-            height: 520px;
+            height: 500px;
             margin-top: 10px;
         }
 
-        /* 상태메시지 스타일 */
+        /* 메시지 알림 창 스타일 */
         #status-message {
             padding: 15px;
             border-radius: 8px;
             margin-bottom: 15px;
             font-size: 14px;
-            line-height: 1.5;
+            line-height: 1.6;
             display: none;
         }
         
@@ -125,9 +126,9 @@
         <div id="status-message"></div>
 
         <div class="upload-zone" id="drop-zone">
-            <span>서버의 CSV를 가져오는 중 오류가 발생했다면, </span>
+            <span>서버에서 CSV를 읽지 못했다면? </span>
             <label for="csv-file">여기에서 CSV 파일을 직접 선택</label>
-            <span>하거나 이 영역에 파일을 드래그앤드롭 하세요.</span>
+            <span>하거나 파일을 이 창 안으로 끌어다 놓으세요(Drag & Drop).</span>
             <input type="file" id="csv-file" accept=".csv" style="display: none;">
         </div>
 
@@ -138,37 +139,36 @@
 
     <script>
         // ==========================================
-        // ⚙️ 사용자의 CSV 설정 (파일명 및 열 이름)
+        // ⚙️ 내 CSV 파일에 맞게 수정하는 곳
         // ==========================================
         const CONFIG = {
-            csvFileName: 'electricity_data.csv', // 👈 [중요] 실제 GitHub의 CSV 파일명과 완벽히 일치해야 합니다 (대소문자 구분 필수)
+            csvFileName: 'electricity_data.csv', // 👈 [주의] 저장소에 올린 실제 CSV 파일명과 '대소문자'까지 완전히 똑같이 적어주세요.
             columnMonth: '연월',                    
             columnSupply: '공급능력(MW)',            
             columnDemand: '최대부하(MW)'             
         };
 
-        let chartInstance = null; // 중복 생성 방지용 객체 변수
+        let chartInstance = null; // 차트 중복 생성 방지용 객체 변수
 
         document.addEventListener('DOMContentLoaded', () => {
-            // 1. 페이지 로드 시 먼저 서버(GitHub Pages) 내의 CSV 파일 가져오기 시도
+            // 1. 자동으로 서버에 있는 CSV 파일 로드 시도
             fetchServerCSV();
 
-            // 2. 파일 수동 입력 이벤트 바인딩
+            // 2. 사용자가 파일을 수동으로 넣었을 때 처리하는 이벤트 바인딩
             const fileInput = document.getElementById('csv-file');
-            fileInput.addEventListener('change', handleFileSelect);
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) processFile(e.target.files[0]);
+            });
 
-            // 드래그 앤 드롭 이벤트 바인딩
             const dropZone = document.getElementById('drop-zone');
-            dropZone.addEventListener('dragover', (e) => { e.preventDefault(); });
+            dropZone.addEventListener('dragover', (e) => e.preventDefault());
             dropZone.addEventListener('drop', (e) => {
                 e.preventDefault();
-                if (e.dataTransfer.files.length > 0) {
-                    processFile(e.dataTransfer.files[0]);
-                }
+                if (e.dataTransfer.files.length > 0) processFile(e.dataTransfer.files[0]);
             });
         });
 
-        // 메시지 표시 함수
+        // 상태 메시지 제어 함수
         function showMessage(text, type) {
             const el = document.getElementById('status-message');
             el.className = ''; 
@@ -178,54 +178,48 @@
             if (type === 'success') el.classList.add('status-success');
         }
 
-        // 서버에서 CSV 가져오기
+        // [방법 1] 서버(GitHub Pages)에서 파일 원격으로 가져오기
         async function fetchServerCSV() {
-            showMessage(`🔄 <strong>${CONFIG.csvFileName}</strong> 파일을 서버에서 읽어오는 중...`, 'loading');
+            showMessage(`🔄 서버에서 <strong>${CONFIG.csvFileName}</strong> 데이터를 불러오는 중입니다...`, 'loading');
             try {
-                // ./ 를 생략하거나 붙여도 동작하도록 캐시 방지 파라미터(Timestamp)를 포함하여 요청
-                const response = await fetch(`${CONFIG.csvFileName}?v=${new Date().getTime()}`);
+                // 브라우저 캐시 방지를 위해 랜덤 쿼리 스트링 추가 (?t=...)
+                const response = await fetch(`${CONFIG.csvFileName}?t=${new Date().getTime()}`);
                 
                 if (!response.ok) {
                     throw new Error(`
-                        <strong>CSV 파일을 로드하지 못했습니다. (상태코드: ${response.status})</strong><br>
-                        주요 원인:<br>
-                        1. GitHub 저장소에 <code>${CONFIG.csvFileName}</code> 파일이 올라가 있지 않음.<br>
-                        2. 파일명의 대소문자가 서로 다름 (예: .CSV 와 .csv 구분).<br>
-                        <br>💡 아래 수동 선택 창을 이용해 컴퓨터에 있는 CSV 파일을 바로 넣어서 테스트해볼 수 있습니다.
+                        <strong>원격 CSV 파일을 찾지 못했습니다 (404 Error)</strong><br>
+                        지정된 파일명인 <code>${CONFIG.csvFileName}</code>가 GitHub 레포지토리에 올바르게 저장되었는지 확인해 주세요.<br>
+                        <br>
+                        💡 <strong>[바로 테스트하기]</strong> 아래 회색 박스를 클릭하여 내 컴퓨터에 있는 CSV 파일을 직접 업로드하면 즉시 차트가 나타납니다!
                     `);
                 }
                 
                 const csvText = await response.text();
-                parseAndRender(csvText, `서버 파일(<code>${CONFIG.csvFileName}</code>)을 성공적으로 로드했습니다.`);
+                parseAndRender(csvText, `서버 파일(<code>${CONFIG.csvFileName}</code>) 데이터를 성공적으로 로드했습니다.`);
 
             } catch (error) {
                 showMessage(error.message, 'error');
             }
         }
 
-        // 수동 파일 선택 처리
-        function handleFileSelect(e) {
-            if (e.target.files.length === 0) return;
-            processFile(e.target.files[0]);
-        }
-
-        // 파일 읽기 실행
+        // [방법 2] 사용자가 수동으로 파일 선택/드롭했을 때 로컬에서 읽기
         function processFile(file) {
-            showMessage(`📂 파일 읽는 중: <strong>${file.name}</strong>`, 'loading');
+            showMessage(`📂 로컬 파일 분석 중: <strong>${file.name}</strong>`, 'loading');
             const reader = new FileReader();
             reader.onload = function(e) {
-                parseAndRender(e.target.result, `선택한 파일(<code>${file.name}</code>) 시각화 완료!`);
+                parseAndRender(e.target.result, `내 컴퓨터의 파일(<code>${file.name}</code>)을 기반으로 시각화했습니다.`);
             };
-            reader.readAsText(file, 'EUC-KR'); // 한글 깨짐 방지를 위해 기본 인코딩 설정 (필요시 UTF-8 변환)
+            // 한글 인코딩(깨짐) 방지를 위해 EUC-KR 설정
+            reader.readAsText(file, 'EUC-KR'); 
         }
 
-        // CSV 분석 및 시각화 트리거
+        // CSV 문자열 파싱 후 차트 생성 호출
         function parseAndRender(csvText, successMsg) {
             try {
                 const parsedData = parseCSV(csvText);
                 
                 if (parsedData.labels.length === 0) {
-                    throw new Error(`CSV 파일을 열었으나 지정된 열 이름(<strong>${CONFIG.columnMonth}</strong>, <strong>${CONFIG.columnSupply}</strong>, <strong>${CONFIG.columnDemand}</strong>)을 찾지 못했습니다. 파일 내부 헤더를 확인하세요.`);
+                    throw new Error(`CSV 파일을 읽었으나 설정된 열 이름(<strong>${CONFIG.columnMonth}</strong>, <strong>${CONFIG.columnSupply}</strong>, <strong>${CONFIG.columnDemand}</strong>)이 감지되지 않았습니다. CSV 파일 첫 줄의 글자들과 코드 상단의 설정을 확인해 주세요.`);
                 }
 
                 showMessage(successMsg, 'success');
@@ -235,12 +229,12 @@
             }
         }
 
-        // 정교해진 CSV 파서
+        // 공백, 따옴표, 쉼표 예외처리가 강화된 CSV 파서
         function parseCSV(text) {
             const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
             if (lines.length === 0) return { labels: [], supply: [], demand: [] };
 
-            // 첫 줄 헤더 파싱 (따옴표 제거 및 공백 트림)
+            // 첫 줄(헤더) 분리 및 정리
             const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, ''));
             const idxMonth = headers.indexOf(CONFIG.columnMonth);
             const idxSupply = headers.indexOf(CONFIG.columnSupply);
@@ -255,13 +249,14 @@
             const demand = [];
 
             for (let i = 1; i < lines.length; i++) {
-                // 쉼표로 분할하되 따옴표 내부의 쉼표는 무시하는 정규식 적용 (예: "1,200" 방지)
+                // 따옴표 내부 쉼표 무시하는 분할 정규식
                 const row = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || lines[i].split(',');
                 const cleanRow = row.map(cell => cell.trim().replace(/^["']|["']$/g, ''));
                 
                 if (cleanRow.length <= Math.max(idxMonth, idxSupply, idxDemand)) continue;
 
                 labels.push(cleanRow[idxMonth]);
+                // 세 자릿수 콤마(,) 제거 후 숫자로 파싱
                 supply.push(parseFloat(cleanRow[idxSupply].replace(/,/g, '')) || 0);
                 demand.push(parseFloat(cleanRow[idxDemand].replace(/,/g, '')) || 0);
             }
@@ -269,11 +264,11 @@
             return { labels, supply, demand };
         }
 
-        // Chart.js 렌더링
+        // Chart.js 시각화 렌더링
         function renderChart(data) {
             const ctx = document.getElementById('powerChart').getContext('2d');
             
-            // 기존 차트가 존재하면 초기화 (중복 렌더링 에러 방지)
+            // 기존 차트 인스턴스가 존재하면 완전히 삭제 후 재성성 (겹침 에러 해결)
             if (chartInstance) {
                 chartInstance.destroy();
             }
@@ -284,7 +279,7 @@
                     labels: data.labels,
                     datasets: [
                         {
-                            label: CONFIG.columnSupply,
+                            label: CONFIG.CONFIG ? CONFIG.columnSupply : CONFIG.columnSupply,
                             data: data.supply,
                             backgroundColor: 'rgba(49, 130, 206, 0.7)',
                             borderColor: 'rgba(49, 130, 206, 1)',
@@ -295,7 +290,7 @@
                         {
                             label: CONFIG.columnDemand,
                             data: data.demand,
-                            backgroundColor: 'rgba(229, 62, 62, 0.2)',
+                            backgroundColor: 'rgba(229, 62, 62, 0.15)',
                             borderColor: 'rgba(229, 62, 62, 1)',
                             borderWidth: 3,
                             type: 'line',
